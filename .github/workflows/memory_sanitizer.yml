@@ -1,0 +1,37 @@
+name: MemorySanitizer
+
+on: push
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: 1
+
+jobs:        
+  llvm_clang:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: install clang-10
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        REPO_NAME="deb http://apt.llvm.org/bionic llvm-toolchain-bionic-10 main"
+        sudo add-apt-repository "${REPO_NAME}"
+        sudo apt-get update
+        sudo apt-get install -y clang-10
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-10 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-10 100
+        sudo update-alternatives --remove cc /usr/bin/cc
+        sudo update-alternatives --remove c++ /usr/bin/c++
+        sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
+        sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
+    
+    - name: memory_sanitizer
+      run: |
+        MSAN_FLAGS="-fsanitize=memory -fno-optimize-sibling-calls -fsanitize-memory-track-origins=2"
+        cmake -E remove_directory build
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="$MSAN_FLAGS" -DDOCTEST_TEST_MODE=COMPARE
+        cmake --build build
+        cd build
+        ctest
